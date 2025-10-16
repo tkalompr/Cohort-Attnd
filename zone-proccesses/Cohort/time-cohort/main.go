@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 )
 
 // ---------------------------- FORMATING ----------------------------------------//
@@ -53,57 +52,62 @@ func ParseRecordType(s string) RecordType {
 }
 
 // ------------------------------- USER STRUCT ----------------------------//
-
-// This is the action model and the data that we have from ttLock
-type Record struct {
-	Login  string
-	Name   string
-	Type   string
-	Stamps []time.Time // raw timestamps εισόδου/εξόδου (θα τα φιλτράρεις/ζευγαρώσεις)
+type ActionsOpps interface {
+	SelectPeriod(from, to string) ([]Action, error)
+	DublicateRemover() ([]Action, error)
 }
 
+type ActionList []Action
+
+// Data from every day key usage
 type Action struct {
 	Username string
 	RecordType
-	Timestamp time.Time
+	Timestamp string
 }
 
+// Data for all the selected from user session
 type InputSession struct {
 	MonthsOfSession []int
 	Count           int
 }
 
+// Data for every month inside the session
 type SessionPerMonth struct {
 	WeeksOfSession []int
 	Count          int
 }
 
+// User data
 type User struct {
 	Login string
 	Name  string
 	InputSession
 	SessionPerMonth
 	CountPerWeek int
-	Days         []time.Time
+	Days         string
 }
 
 // ---------------------------- Functions - methods ----------------------------//
+
+// Read the users file from the funel and standarize the length of the [] of users.
+// It also keeps the username and the full name of the user.
 func Reader(path string) ([]User, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, BoldRed+"Failed to open users file"+Reset, ":", err)
 		return nil, err
 	}
-	defer f.Close()
+	defer file.Close()
 
-	scanner := bufio.Newscanner(file)
+	scanner := bufio.NewScanner(file)
 	var users []User
 	var cur *User
-	state := 0 // 0: περιμένω Login, 1: περιμένω Name
+	state := 0 // 0: waiting Login, 1: wating for full name
 
-	for scanner.scanner() {
+	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		if line == "" || line == "---" { // προαιρετικός διαχωριστής
+		if line == "" {
 			continue
 		}
 
@@ -124,7 +128,7 @@ func Reader(path string) ([]User, error) {
 		return nil, err
 	}
 
-	// Αν το αρχείο τελειώνει “στη μέση” (π.χ. λείπει Name), μπορείς να το ελέγξεις:
+	// Unreaded document or corrupted (no name, no username, etc)
 	if state == 1 && cur != nil {
 		fmt.Fprintln(os.Stderr, Yellow+"Warning:"+Reset, "last user is missing a Name line; skipping")
 	}
@@ -132,25 +136,46 @@ func Reader(path string) ([]User, error) {
 	return users, nil
 }
 
-func LoadUsers(names string) []User {
-	var users []User
+func CSVReader(path string) ([]Action, error) {
+	// This function takes the csv file it transforms the data to []Actions.
+	// Also two helpers inside :
+	// 1) Selecting the input-given period only
+	// 2) Cleanning of dublicates per day
+	return nil, nil
+}
 
-	return users
+// ============================ METHODS ======================================= //
+
+func (a ActionList) SelectPeriod(from, to string) ([]Action, error) {
+	//Select a piece of the []Actions depending on the given dates
+	return nil, nil
+}
+func (a ActionList) DublicateRemover() ([]Action, error) {
+	//Keeps 1 action for a user per day from []Actions
+	return nil, nil
 }
 
 // ============================ MAIN FUNCTION ================================= //
 
 func main() {
-	// read users fille
+	// read users file
 	users, err := Reader("./USERS.txt")
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error: reader Cannot read")
+		fmt.Fprintln(os.Stderr, "Error:Users.txt cannot be red")
 		return
 	}
 
 	fmt.Println(users)
 
-	// flag variables init
+	actions, err := CSVReader("./ttlockResponse.csv")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error:CSV cannot be red")
+		return
+	}
+
+	fmt.Println(actions)
+
+	// // Flag variables parsing
 	// fromStr := flag.String("from", "", "start date (YYYY-MM-DD)")
 	// toStr := flag.String("to", "", "end date (YYYY-MM-DD)")
 	csvPath := flag.String("csv", "", "path to TTLock CSV")
