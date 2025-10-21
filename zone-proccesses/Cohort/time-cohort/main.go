@@ -42,9 +42,7 @@ func fileExists(p string) bool {
 func stripBOM(s string) string {
 	const bom = "\uFEFF"
 	return strings.TrimPrefix(s, bom)
-}
-
-// ============================ domain types ====================================//
+} // ============================ domain types ====================================//
 
 type RecordType int
 
@@ -79,11 +77,6 @@ func ParseRecordType(s string) RecordType {
 	default:
 		return -1
 	}
-}
-
-type ActionsOps interface {
-	SelectPeriod(from, to string) ([]Action, error)
-	DuplicateRemover([]Action) ([]Action, error)
 }
 
 type ActionList []Action
@@ -286,11 +279,14 @@ func CSVReader(path string) ([]Action, error) {
 			rt = ParseRecordType(row[idxType])
 		}
 
-		actions = append(actions, Action{
-			Username:   user,
-			RecordType: rt,
-			Timestamp:  ts,
-		})
+		// Only keep actions with valid RecordType (UnlockWithApp or Locked)
+		if rt == UnlockWithApp || rt == Locked {
+			actions = append(actions, Action{
+				Username:   user,
+				RecordType: rt,
+				Timestamp:  ts,
+			})
+		}
 	}
 	return actions, nil
 }
@@ -574,15 +570,6 @@ func (a ActionList) UniquePerUserPerDay(actions []Action) ([]Action, error) {
 	return out, nil
 }
 
-// indexUsers builds a map[login]fullName from USERS.txt entries.
-func indexUsers(users []User) map[string]string {
-	m := make(map[string]string, len(users))
-	for _, u := range users {
-		m[u.Login] = u.Name
-	}
-	return m
-}
-
 // ============================ MAIN FUNCTION ===================================//
 
 func main() {
@@ -646,7 +633,7 @@ func main() {
 	if strings.ToUpper(userFilter) != "ALL" {
 		filtered := make([]Action, 0, len(actions))
 		for _, a := range actions {
-			if a.Username == userFilter {
+			if strings.EqualFold(a.Username, userFilter) {
 				filtered = append(filtered, a)
 			}
 		}
@@ -670,42 +657,48 @@ func main() {
 	}
 	fmt.Printf("After duplicate removal: %d actions\n", len(cleaned))
 
-	// 6) Count per user
-	counts := CountByUser(cleaned)
-	if strings.ToUpper(userFilter) != "ALL" {
-		fmt.Printf("Occurrences for %q: %d\n", userFilter, counts[userFilter])
-	} else {
-		type kv struct {
-			user string
-			n    int
+	// Check for users who didn't come in the selected time period
+	var NotFoundUsers []User
+	for _, user := range users {
+		var found bool
+		for _, action := range cleaned {
+			if strings.Contains(action.Username, user.Login) || strings.Contains(action.Username, user.Name) {
+				found = true
+				break
+			}
 		}
-		var list []kv
-		for u, n := range counts {
-			list = append(list, kv{u, n})
-		}
-		sort.Slice(list, func(i, j int) bool { return list[i].n > list[j].n })
-		fmt.Println("Occurrences per user (after filters & de-dup):")
-		for _, it := range list {
-			fmt.Printf("- %s: %d\n", it.user, it.n)
+		if !found {
+			NotFoundUsers = append(NotFoundUsers, user)
 		}
 	}
+	fmt.Println("\nUsers that didnt came in the selected time at all")
+	for i, NotFoundUser := range NotFoundUsers {
+		fmt.Printf("%v %v %v\n", i+1, NotFoundUser.Login, NotFoundUser.Name)
+	}
+	fmt.Println()
 
-	// 7) Sample print
-	printSample(cleaned, 10)
+	// 6) Count per user
+	userCounts := CountByUser(cleaned)
+	if strings.ToUpper(userFilter) != "ALL" {
+		fmt.Printf("Occurrences for %q: %d\n", userFilter, len(cleaned))
+	} else {
+
+		type UserCount struct {
+			username string
+			count    int
+		}
+		var sortedUserCounts []UserCount
+		for username, count := range userCounts {
+			sortedUserCounts = append(sortedUserCounts, UserCount{username, count})
+		}
+		sort.Slice(sortedUserCounts, func(i, j int) bool {
+			return sortedUserCounts[i].count > sortedUserCounts[j].count
+		})
+		fmt.Println("Occurrences per user (after filters & de-dup):")
+		for index, userCount := range sortedUserCounts {
+			fmt.Printf("%v) %s: %d\n", index+1, userCount.username, userCount.count)
+		}
+	}
 
 	fmt.Println(BoldYellow + "...Done. CSV pipeline complete." + Reset)
-}
-
-func printSample(actions []Action, n int) {
-	if n > len(actions) {
-		n = len(actions)
-	}
-	fmt.Println("==== Sample of actions ====")
-	for i := 0; i < n; i++ {
-		a := actions[i]
-		fmt.Printf("%s | %-18s | %s\n", a.Timestamp, a.Username, a.RecordType.String())
-	}
-	if len(actions) > n {
-		fmt.Printf("... and %d more\n", len(actions)-n)
-	}
 }
