@@ -55,7 +55,7 @@ Fotini Komninou
 ggeorgako
 Giannis Georgakopoulos
 
-kpetrouts
+kpetrout
 Konstantinos Petroutsos
 
 sgiorgis
@@ -67,7 +67,7 @@ periklis moustaka
 sntentop
 Stefanos Ntentopoulos
 
-daslamak
+daslamac
 Dilhan Aslamaci
 
 ekoumaki
@@ -248,7 +248,7 @@ Dimitris Liolios
 cm
 Christos Maliaritsis
 
-vstafeno
+vstefano
 Evangelos Stefanopoulos
 
 ebourmpo
